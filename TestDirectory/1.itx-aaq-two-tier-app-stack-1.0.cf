@@ -1,0 +1,247 @@
+{
+	"AWSTemplateFormatVersion": "2010-09-09",
+	
+    "Description": " v1.0: This AWS CloudFormation script used to create Two-Tier Application Stack with App-Servers (Windows or Linux) and Database Server to demonstrate the primitive approach for creating the application architecture stack. The App-Server(s) will be launched based on Auto-Scaling Group and its policies. The script is also launching internal Elastic Load Balancer (ELB) and attach newly launched App-Servers with this. At the end of this stack deployment it will share internal target URL for ELB to access this 2-tier Application Stack. Based on stack selection (either Windows or Linux) for App-Servers, the corresponding stack will be launched.",
+	
+	"Parameters" : {
+	
+	"VpcId" : {
+      "Type" : "String",
+      "Description" : "The target VPC Id where the 2-tier Application stack needs to be launched.",
+      "AllowedPattern" : "^vpc-[a-z0-9]{8}$",
+	  "Default" : "vpc-901e3bfd"
+    },
+	
+	"AppServerSubnet" : {
+      "Type" : "String",
+      "Description" : "The target SubnetIds (comma seperated for ex: subnet-748fc219,subnet-4a8fc227) where App-server(s) needs to be launched across",	  
+       "Default" : "subnet-46183d2b,subnet-ec183d81,subnet-cc183da1"		  
+    },
+	
+	"AppServerSubnetAZs" : {
+      "Type" : "String",
+      "Description" : "The target Availability Zones (comma seperated) where App-server(s) needs to be launched across",
+	  "Default" : "us-east-1a,us-east-1c,us-east-1d"	    
+    },
+	
+	"AppServerInstType" : {
+      "Description" : "The target EC2 instance type for App-server, please refer http://aws.amazon.com/ec2/instance-types/ and select appropriately.",
+      "Type" : "String",
+      "AllowedValues" : [ "t1.micro","m1.small","m1.medium","m1.large","m1.xlarge","m2.xlarge","m2.2xlarge","m2.4xlarge","c1.medium","c1.xlarge","cc1.4xlarge","cc2.8xlarge","cg1.4xlarge"],
+      "ConstraintDescription" : "It should be a valid EC2 instance type.",
+      "Default" : "c1.medium"	  
+    },
+	
+	"MinCapacity" : {
+	  "Description" : "Min capacity of autoscaling group. As per ITx requirement the minimum value is assigned as 1 by default",
+	  "Type" : "Number",
+	  "MinValue" : "1",
+	  "MaxValue" : "6",
+	  "Default" : "2"
+	},
+	
+	"DesiredCapacity" : {
+	  "Description" : "The desired capacity for App-server instances in the auto scaling group. Please note, the auto scaling group has MinSize as 2 and MaxSize as 10 by-default. So Please give the desired capacity as >= 2, incase of higher than MinSize it will be stablized based on ScaleUp and ScaleDown Policy.",
+      "Type" : "Number",
+      "MinValue" : "1",
+      "MaxValue" : "24",
+      "Default" : "2"
+    },
+    
+	 "MaxCapacity" : {
+	  "Description" : "Max capacity of autoscaling group.As per ITx requirement the maximum value is assigned as 10 by default",
+	  "Type" : "Number",
+	  "MinValue" : "6",
+	  "MaxValue" : "24",
+	  "Default" : "10"
+	},
+	
+	"AppServerPort" : {
+      "Description" : "The target port on App-Server where application can be accessible",
+      "Type" : "String",
+      "AllowedPattern" : "[0-9]*",
+      "Default" : "8080"	  
+    },
+	
+	"AppServerInstKeyName" : {
+      "Description" : "The target KeyName which will be attached to the App-server instance to be connected securely",
+	  "Type" : "String",
+	  "MinLength": "1",
+	  "MaxLength": "64",
+	  "AllowedPattern" : "[-_ a-zA-Z0-9]*",
+	  "ConstraintDescription" : "It Can contain only alphanumeric characters, spaces, dashes and underscores.",
+	  "Default" : "demo-itx-aaq-servers-adminkey"	  
+    },
+	
+	"InstanceStackOS" : {
+	  "Description" : "The target 2-tier application stack, either Windows or Linux. This is case sensitive.",
+	  "Type" : "String",  
+	  "AllowedValues" : ["Linux","Windows"],
+	  "Default" : "Linux"	  
+	},
+	
+	"AppServerAMI" : {
+	  "Description" : "The target AMI id of App-server to be launched",
+	  "Type" : "String",
+   	  "AllowedPattern" : "^ami-[a-z0-9]{8}$",
+	  "Default" : "ami-4205992b"	  
+	},
+	
+	"AppServerSecurityGroup" : {
+		  "Description" : "The target Security Group id(s) (For EX: App-Server, Puppet Agent and Domain Member) needs to be attached to App-server(s), comma seperated.",
+		  "Type" : "String",
+    	  "Default" :"sg-b0e01fdf,sg-b6e01fd9,sg-83e01fec"		  
+	},
+	
+	"LoadBalancerSecurityGroup" : {
+		  "Description" : "The target Security Group id for Elastic Load balancer",
+		  "Type" : "String",
+    	  "AllowedPattern" : "^(sg-[a-z0-9]{8}|None)$",
+    	  "Default" :"sg-b8e01fd7"		  
+	},
+	
+	"AppServerInstanceTagName" : {
+	  "Description" : "The name of App-server(s) for tagging as well as AWS console display.", 
+      "Type" : "String",
+      "Default" : "wait-condition-itx-aaq-appserver-instance"	  
+	},
+	
+	"DBInstanceKeyName" : {
+      "Description" : "The target KeyName which will be attached to the DB-server instance to be connected securely",
+	  "Type" : "String",
+	  "MinLength": "1",
+	  "MaxLength": "64",
+	  "AllowedPattern" : "[-_ a-zA-Z0-9]*",
+	  "ConstraintDescription" : "It can contain only alphanumeric characters, spaces, dashes and underscores.",
+	  "Default" : "demo-itx-aaq-servers-adminkey"	  
+	},
+	
+	"DatabaseAMI" : {
+	  "Description" : "The target AMI id for DB-server to be launched",
+	  "Type" : "String",
+      "AllowedPattern" : "^ami-[a-z0-9]{8}$",
+	  "Default" : "ami-e605998f"	  
+	},
+
+   "DBInstanceType" : {
+      "Description" : "The target EC2 instance type for DB-server, please refer http://aws.amazon.com/ec2/instance-types/ and select appropriately.",
+      "Type" : "String",
+      "AllowedValues" : [ "t1.micro","m1.small","m1.medium","m1.large","m1.xlarge","m2.xlarge","m2.2xlarge","m2.4xlarge","m3.xlarge","m3.2xlarge","c1.medium","c1.xlarge","cc1.4xlarge","cc2.8xlarge","cg1.4xlarge"],
+      "ConstraintDescription" : "It must be a valid EC2 instance type.",
+      "Default" : "m1.xlarge"	  
+    },
+	
+	"MasterDBInstanceSubnet" : {
+      "Description" : "The target SubnetId where master DB-server needs to be launched",
+      "Type" : "String",
+      "AllowedPattern" : "^subnet-[a-z0-9]{8}$",
+      "Default" : "subnet-46183d2b"	  
+	},
+	
+	"MasterDBInstanceIP" : {
+	  "Description" : "The target VPC IP address for Master DB-server. It's required where App-server application needs to contact target master DB-server",
+      "Type" : "String",
+      "AllowedPattern" : "^(([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\\.){3}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])$",
+      "Default" : "10.1.1.12"
+	},
+	
+	"MasterDBInstanceTagName" : {
+	  "Description" : "The name of Master DB-server for tagging as well as AWS console display.", 
+      "Type" : "String",
+	  "Default" : "wait-condition-itx-aaq-dbserver-instance-master"	  
+	},
+	
+	"SlaveDBInstanceSubnet" : {
+      "Description" : "The target SubnetId where Slave DB-server needs to be launched",
+      "Type" : "String",	
+      "AllowedPattern" : "^subnet-[a-z0-9]{8}$",
+      "Default" : "subnet-ec183d81"			  
+	},
+	
+	"SlaveDBInstanceIP" : {
+	  "Description" : "The target VPC IP address for Slave DB-server. It's required where App-server application needs to contact target Slave DB-server",
+      "Type" : "String",
+      "AllowedPattern" : "^(([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\\.){3}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])$",
+      "Default" : "10.1.2.12"	  
+	},
+	
+	"SlaveDBInstanceTagName" : {
+	  "Description" : "The name of the Slave DB-server for tagging as well as AWS console display.", 
+      "Type" : "String",
+      "Default" : "wait-condition-itx-aaq-dbserver-instance-slave"	  
+	},
+	
+	"DBServerSecurityGroup" : {
+		  "Description" : "The target Security Group id(s) (For EX: DB-Server, Puppet Agent and Domain Member) needs to attached to both master & slave DB-server, comma seperated.",
+		  "Type" : "String",
+    	  "Default" :"sg-b0e01fdf,sg-b3e01fdc,sg-83e01fec"
+	},
+	
+	"PuppetMasterIP" : {
+		"Description": "The target VPC IP Address for Puppet Master. It's required where all Puppet Agents needs to be communicated with Puppet Master",
+		"Type": "String",
+		"Default" :"10.1.1.194"		
+	}	
+    },
+	
+	"Mappings" : {	
+	    "OSTOURL" : {
+		    "Linux"      : { "URL" : "https://s3.amazonaws.com/itx-aaq-test-bucket/2.itx-aaq-app-tier-linux-server-1.0.cf" },
+			"Windows"    : { "URL" : "https://s3.amazonaws.com/itx-aaq-test-bucket/3.itx-aaq-app-tier-windows-server-1.0.cf" }
+		}
+	},
+	
+	"Resources" : { 
+
+		"AppServerStack": {
+		  "Type": "AWS::CloudFormation::Stack",
+		  "Properties": {
+			"TemplateURL": { "Fn::FindInMap" : [ "OSTOURL", { "Ref" : "InstanceStackOS" }, "URL" ] },
+			"Parameters" : {
+			   "AppServerInstType" : { "Ref" : "AppServerInstType" },
+			   "MinCapacity" : { "Ref" : "MinCapacity" },
+       		   "MaxCapacity" : { "Ref" : "MaxCapacity" },
+			   "DesiredCapacity" : { "Ref" : "DesiredCapacity" },			   
+			   "AppServerAMI" : { "Ref" : "AppServerAMI" },			   
+			   "AppServerInstKeyName" : { "Ref" : "AppServerInstKeyName" },
+			   "AppServerPort" : { "Ref" : "AppServerPort" },
+			   "VpcId" : { "Ref" : "VpcId" },
+			   "AppServerSubnetAZs" : { "Ref" : "AppServerSubnetAZs" },
+			   "AppServerSubnet" : { "Ref" : "AppServerSubnet" },
+			   "AppServerSecurityGroup" : { "Ref" : "AppServerSecurityGroup" },				   		  
+			   "LoadBalancerSecurityGroup" : { "Ref" : "LoadBalancerSecurityGroup" },				   
+			   "MasterDBInstanceIP" : { "Ref" : "MasterDBInstanceIP" },
+			   "AppServerInstanceTagName" : { "Ref" : "AppServerInstanceTagName" },		   			   
+			   "PuppetMasterIP" : { "Ref" : "PuppetMasterIP" },
+			   "SlaveDBInstanceIP" : { "Ref" : "SlaveDBInstanceIP" }
+			   }
+		    }
+	    },
+		"DBServerStack": {
+			"Type": "AWS::CloudFormation::Stack",
+			"Properties": {
+				"TemplateURL": "https://s3.amazonaws.com/itx-aaq-test-bucket/4.itx-aaq-db-tier-linux-server-1.0.cf",
+				"TimeoutInMinutes": "120",
+				"Parameters" : {
+				   "VpcId" : { "Ref" : "VpcId" },
+				   "MasterDBInstanceSubnet" : { "Ref" : "MasterDBInstanceSubnet" },			   				   
+				   "DBInstanceType" : { "Ref" : "DBInstanceType" },			   				   
+				   "MasterDBInstanceIP" : { "Ref" : "MasterDBInstanceIP" },				   				   
+				   "DBInstanceKeyName" : { "Ref" : "DBInstanceKeyName" },
+				   "DatabaseAMI" : { "Ref" : "DatabaseAMI" },
+				   "MasterDBInstanceTagName" : { "Ref" : "MasterDBInstanceTagName" },
+				   "DBServerSecurityGroup" : { "Ref" : "DBServerSecurityGroup" },
+				   "SlaveDBInstanceSubnet" : { "Ref" : "SlaveDBInstanceSubnet" },	
+				   "SlaveDBInstanceIP" : { "Ref" : "SlaveDBInstanceIP" },
+				   "SlaveDBInstanceTagName" : { "Ref" : "SlaveDBInstanceTagName" },
+				   "PuppetMasterIP" : { "Ref" : "PuppetMasterIP" }
+				}
+			}
+		}		
+    },
+		
+	"Outputs" : {
+	  "WebStackRef": {"Value": { "Ref" : "AppServerStack"}},
+   	  "DBStackRef": {"Value": { "Ref" : "DBServerStack"}}
+	}
+  }
