@@ -1,7 +1,7 @@
 {
 	"AWSTemplateFormatVersion": "2010-09-09",
 	
-    "Description": " v1.0: This AWS CloudFormation script used to create Two-Tier Application Stack with App-Servers (Windows or Linux) and Database Server to demonstrate the primitive approach for creating the application architecture stack. The App-Server(s) will be launched based on Auto-Scaling Group and its policies. The script is also launching internal Elastic Load Balancer (ELB) and attach newly launched App-Servers with this. At the end of this stack deployment it will share internal target URL for ELB to access this 2-tier Application Stack. Based on stack selection (either Windows or Linux) for App-Servers, the corresponding stack will be launched.",
+    "Description": " v1.0: This AWS CloudFormation script used to create Two-Tier Application Stack with App-Servers (Windows or Linux) and Database Server to demonstrate the primitive approach for creating the application architecture stack. The App-Server(s) will be launched based on Auto-Scaling Group and its policies. The script is also launching internal Elastic Load Balancer (ELB) and attach newly launched App-Servers with this. At the end of this stack deployment it will share internal target URL for ELB to access this 2-tier Application Stack. Based on stack selection (either Windows or Linux) for App-Servers, the corresponding stack will be launched. This commit is for cross reference check",
 	
 	"Parameters" : {
 	
